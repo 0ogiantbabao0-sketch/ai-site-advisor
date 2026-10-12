@@ -1,52 +1,42 @@
-# Cloudflare Pagesで公開
+# Cloudflare PagesでAIを実行する
 
-このアプリは静的サイトです。APIキー、Functions、Workers、DBの設定は不要です。無料プランのCloudflare Pagesで公開する構成です。ChatGPT側の利用制限は別です。
+既存のGitHub連携Pagesを使います。静的画面に加え、`functions/api/research.ts` が `/api/research` を担当します。ZIPを画面へアップロードするだけではFunctionsが公開されないため、GitHub連携でデプロイしてください。
 
-## GitHub連携（推奨）
+## ビルド設定（既存のまま）
 
-1. Cloudflareダッシュボードで **Workers & Pages → 作成 → Pages → GitHub連携** を選びます。
-2. GitHubの `0ogiantbabao0-sketch/ai-site-advisor` を選択します。見つからない場合はCloudflareのGitHubアプリにこのリポジトリへのアクセスを許可します。
-3. 次の値で保存・デプロイします。
+- リポジトリ: `0ogiantbabao0-sketch/ai-site-advisor`
+- ブランチ: `main`
+- ビルド: `npm run build`
+- 出力: `out`
+- ルート: 空欄
+- Node: `.node-version` の24.19.0
 
-| 項目                   | 設定                                                                    |
-| ---------------------- | ----------------------------------------------------------------------- |
-| プロジェクト名         | `ai-site-advisor`（使用済みなら別名）                                   |
-| 本番ブランチ           | `main`                                                                  |
-| フレームワーク         | `Next.js (Static HTML Export)`                                          |
-| ビルドコマンド         | `npm run build`                                                         |
-| ビルド出力ディレクトリ | `out`                                                                   |
-| ルートディレクトリ     | リポジトリのルート（空欄）                                              |
-| Node.js                | `.node-version` の `24.19.0`。必要ならビルド変数 `NODE_VERSION=24.19.0` |
+## AI接続と設定
 
-`Next.js` のWorkers向け設定や `@cloudflare/next-on-pages` は使用しません。Pagesの静的サイトとして公開します。Cloudflareの画面名称が変わっている場合も、Git連携のPagesと上記ビルド値を選んでください。
+Cloudflare → Workers & Pages → `ai-site-advisor` → Settings。
 
-完了するとCloudflareが `https://...pages.dev` のURLを表示します。そのURLをスマートフォンで開きます。GitHubにpushした更新は自動的に再ビルド・公開されます。
+1. Bindings → Add → Workers AI。変数名を **`AI`** にする。本番環境を対象に設定する。
+2. Variables and Secretsで以下を本番環境に登録する。
+   - **`RESEARCH_PASSWORD`**: Secret。自分で作った長い利用パスワード。チャットやGitHubには書かない。
+   - **`ALLOWED_SITE_HOSTS`**: 通常の変数。調査先の正確なホスト名をカンマ区切りにする。例: `www.example.com,results.example.com`（実際に使うサイトに置き換える）。URL全体やパス、ワイルドカードは指定しない。
+3. 設定を保存して再デプロイする（Deployments → 最新デプロイ → Retry deployment）。
+4. 公開アプリの「設定」で、調査先の店舗・実績ページURLと同じ利用パスワードを入力して保存する。
+5. 条件を選び「AIで調査」を押す。
 
-## ZIPを直接アップロード
+ドメインは完全一致です。リダイレクト先も同じ許可一覧で検証するので、`www` の有無や別ドメインへの移動に注意してください。アプリ側でURLを編集しても、サーバーの許可一覧は変更されません。
 
-Git連携せず公開する場合は、Cloudflareの **Pages → アセットをアップロード（Direct Upload）** で、用意した `ai-site-advisor-cloudflare.zip` をアップロードします。ZIPの直下に `index.html` と `_next/` がある必要があります。
+AIモデルは無料枠対象の `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を使用します。Freeプランを維持してください。Workers Paidでは無料枠超過分に課金が発生します。AI無料枠はアカウント内の他のAI使用と共有されます。上限時は画面にエラーを表示し、有料AIへの切替や自動再試行はしません。
 
-ローカルで作り直す場合：
+## 確認
 
-```sh
-npm ci
-npm run build
-```
+- `/`、`/settings/`、`/demo/` が表示される。
+- 設定した調査先URLとプロンプトが再読込後も残る。
+- 「AIで調査」で取得ページと結果が表示される。
+- 未設定は503、パスワード不一致は401、未許可URLは400、全件取得失敗は422。
+- AI実行失敗は503（無料枠、AI Binding、モデルの利用可否を確認）。
 
-`out/` の内容をZIPにします。`out` フォルダーそのもの、Git、node_modules、ソースコードをZIPに含めないでください。更新のたびに新しいZIPをアップロードします。Git連携による自動反映が必要なら最初からGit連携方式を選んでください。
+プレビュー環境で実行する場合は、その環境にもBindingsと変数が必要です。実際のサイトによっては取得拒否や動的表示があり、本文を読み取れません。閲覧制限を回避する仕組みはありません。
 
-## 公開後の確認
-
-- トップ画面・`/demo/`・`/settings/` が開く。
-- プロンプト作成・コピーが動く。HTTPS上でクリップボードが利用できます。
-- ページを開いた日の日本時間が対象日の初期値になる。
-- 「ChatGPTを開く」でChatGPTに移動し、貼り付けて実行できる。
-
-アプリから自動でChatGPTへ送信する処理はありません。
-
-## この環境での確認範囲
-
-静的出力の生成、静的ファイル配信でのPC・iPhoneサイズのブラウザ操作、未来の端末日時による日本時間の初期日付を検証しました。Cloudflareアカウントの認証はこの環境にないため、Cloudflareへの実アップロードと公開URLの動作確認はユーザーのダッシュボードでの公開後に行う必要があります。
-
-公式手順：
-https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/
+公式資料:
+- https://developers.cloudflare.com/pages/functions/bindings/#workers-ai
+- https://developers.cloudflare.com/workers-ai/platform/pricing/

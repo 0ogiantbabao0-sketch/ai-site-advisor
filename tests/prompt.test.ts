@@ -26,7 +26,7 @@ test("selected conditions appear as structured data in generated prompt", () => 
 test("machine and source omissions leave useful explicit defaults", () => {
   const prompt = generatePrompt(defaultInput());
   assert.match(prompt, /指定なし・確認できる機種から選ぶ/);
-  assert.match(prompt, /公開サイトから探す/);
+  assert.match(prompt, /調査先URLの指定が必要/);
 });
 test("research and evidence requirements distinguish unavailable browsing and uncertain facts", () => {
   const prompt = generatePrompt(defaultInput());

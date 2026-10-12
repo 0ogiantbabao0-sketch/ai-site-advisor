@@ -1,133 +1,96 @@
 import { test, expect } from "@playwright/test";
-test("conditions generate a prompt, copy exact contents and expose ChatGPT link without API calls", async ({
+test("settings persist edited prompt and URLs; button runs research and displays evidence", async ({
   page,
-}, testInfo) => {
-  const calls: string[] = [];
-  page.on("request", (r) => {
-    if (r.url().includes("/api/")) calls.push(r.url());
-  });
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        writeText: async (text: string) => {
-          (window as unknown as { copiedPrompt: string }).copiedPrompt = text;
-        },
+}) => {
+  await page.goto("/settings/");
+  await page
+    .getByLabel("調査先URL", { exact: true })
+    .fill("https://example.com/hall");
+  await page
+    .getByLabel("利用パスワード", { exact: true })
+    .fill("test-password");
+  await page
+    .getByLabel("調査プロンプト", { exact: true })
+    .fill("日本語で比較: {{検索条件}}");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("保存しました。");
+  await page.reload();
+  await expect(page.getByLabel("調査プロンプト", { exact: true })).toHaveValue(
+    "日本語で比較: {{検索条件}}",
+  );
+  await page.getByRole("link", { name: "← 検索" }).click();
+  await page.getByRole("button", { name: "京都駅", exact: true }).click();
+  await page.route("**/api/research", async (route) => {
+    expect(route.request().headers().authorization).toBe(
+      "Bearer test-password",
+    );
+    const body = route.request().postDataJSON();
+    expect(body.template).toBe("日本語で比較: {{検索条件}}");
+    expect(body.input.area).toBe("京都駅");
+    expect(body.input.preferredSites).toEqual(["https://example.com/hall"]);
+    await route.fulfill({
+      json: {
+        report: "確認資料に基づく候補。根拠不足の項目は評価保留。",
+        sources: [{ url: "https://example.com/hall", status: "ok" }],
+        retrievedAt: "2026-10-13T01:00:00Z",
       },
     });
   });
-  await page.goto("/");
-  await page.getByRole("button", { name: "京都駅", exact: true }).click();
-  await page
-    .getByRole("checkbox", { name: "マイジャグラーV", exact: true })
-    .check();
-  await page.getByLabel("範囲の目安", { exact: true }).selectOption("20");
-  await page.getByLabel("対象日", { exact: true }).fill("2026-10-12");
-  await page.getByText("詳細設定", { exact: true }).click();
-  await page.getByLabel(/調査先URL/).fill("https://example.com/hall");
-  await page
-    .getByLabel("重視したいこと", { exact: true })
-    .fill("駅から近い店舗を優先");
-  await page.getByRole("button", { name: /プロンプトを作成/ }).click();
-  const output = page.getByLabel("生成したプロンプト", { exact: true });
-  const text = await output.inputValue();
-  expect(text).toContain("京都駅");
-  expect(text).toContain("マイジャグラーV");
-  expect(text).toContain("https://example.com/hall");
-  await page.getByRole("button", { name: "コピー", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("貼り付け");
-  expect(
-    await page.evaluate(
-      () => (window as unknown as { copiedPrompt: string }).copiedPrompt,
-    ),
-  ).toBe(text);
+  await page.getByRole("button", { name: /AIで調査/ }).click();
+  await expect(page.locator(".research-report")).toContainText("評価保留");
   await expect(
-    page.getByRole("link", { name: /ChatGPTを開く/ }),
-  ).toHaveAttribute("href", "https://chatgpt.com/");
-  expect(calls).toEqual([]);
+    page.getByRole("region", { name: "取得した資料" }),
+  ).toContainText("本文取得済み");
+  await expect(
+    page.getByRole("link", { name: "https://example.com/hall", exact: true }),
+  ).toHaveAttribute("href", "https://example.com/hall");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,
     ),
   ).toBe(true);
-  await page.screenshot({
-    path: `test-results/free-prompt-${testInfo.project.name}.png`,
-    fullPage: true,
-  });
-  await page.getByRole("button", { name: "高槻駅", exact: true }).click();
-  await expect(
-    page.getByText("条件を変更しました。", { exact: false }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: /プロンプトを作成/ }).click();
-  await expect(output).toHaveValue(/高槻駅/);
-  await expect(
-    page.getByRole("button", { name: "コピー", exact: true }),
-  ).toBeVisible();
 });
-test("unavailable clipboard offers manual copy; invalid site leaves no generated result", async ({
+test("missing setup and quota errors are shown without fabricated results", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        writeText: async () => {
-          throw new Error("denied");
-        },
-      },
-    });
-  });
   await page.goto("/");
-  await page.getByText("詳細設定", { exact: true }).click();
-  await page.getByLabel(/調査先URL/).fill("javascript:alert(1)");
-  await page.getByRole("button", { name: /プロンプトを作成/ }).click();
-  await expect(page.locator(".error[role=alert]")).toBeVisible();
-  await expect(
-    page.getByLabel("生成したプロンプト", { exact: true }),
-  ).toHaveCount(0);
-  await page.getByLabel(/調査先URL/).fill("");
-  await page.getByRole("button", { name: /プロンプトを作成/ }).click();
-  await page.getByRole("button", { name: "コピー", exact: true }).click();
-  await expect(page.locator(".error[role=alert]")).toContainText(
-    "手動でコピー",
+  await page.getByRole("button", { name: /AIで調査/ }).click();
+  await expect(page.locator(".error[role=alert]")).toContainText("調査先URL");
+  await page.goto("/settings/");
+  await page
+    .getByLabel("調査先URL", { exact: true })
+    .fill("https://example.com/hall");
+  await page
+    .getByLabel("利用パスワード", { exact: true })
+    .fill("test-password");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await page.goto("/");
+  await page.route("**/api/research", (route) =>
+    route.fulfill({
+      status: 503,
+      json: {
+        error: "無料枠の残量を確認してください。",
+        sources: [{ url: "https://example.com/hall", status: "ok" }],
+      },
+    }),
   );
-  expect(
-    await page
-      .getByLabel("生成したプロンプト")
-      .evaluate(
-        (element: HTMLTextAreaElement) =>
-          element.selectionEnd - element.selectionStart,
-      ),
-  ).toBeGreaterThan(100);
+  await page.getByRole("button", { name: /AIで調査/ }).click();
+  await expect(page.locator(".error[role=alert]")).toContainText("無料枠");
+  await expect(page.locator(".research-report")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /AIで調査/ })).toBeEnabled();
 });
-test("example is preset conditions, not fake recommendations; guide needs no API setup", async ({
-  page,
-  request,
-}) => {
-  await page.goto("/demo");
-  await expect(page.getByRole("region", { name: "入力例" })).toBeVisible();
-  await page.getByRole("button", { name: /プロンプトを作成/ }).click();
-  await expect(page.getByLabel("生成したプロンプト")).toHaveValue(/京都駅/);
-  await expect(page.locator(".recommendation")).toHaveCount(0);
-  await page.getByRole("link", { name: "使い方", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "使い方", exact: true }),
-  ).toBeVisible();
-  expect((await request.post("/api/research", { data: {} })).status()).toBe(
-    404,
-  );
-});
-
-test("static pages initialize JST today from the visitor clock, not the build date", async ({
+test("settings require conditions placeholder and visitor date uses JST", async ({
   page,
 }) => {
   await page.clock.setFixedTime(new Date("2030-04-15T21:00:00Z"));
-  for (const path of ["/", "/demo/"]) {
-    await page.goto(path);
-    await expect(page.getByLabel("対象日", { exact: true })).toHaveValue(
-      "2030-04-16",
-    );
-    await page.getByRole("button", { name: /プロンプトを作成/ }).click();
-    await expect(page.getByLabel("生成したプロンプト")).toHaveValue(
-      /2030-04-16/,
-    );
-  }
+  await page.goto("/");
+  await expect(page.getByLabel("対象日", { exact: true })).toHaveValue(
+    "2030-04-16",
+  );
+  await page.goto("/settings/");
+  await page
+    .getByLabel("調査プロンプト", { exact: true })
+    .fill("missing conditions");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("{{検索条件}}");
 });

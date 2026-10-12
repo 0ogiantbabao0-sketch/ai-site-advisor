@@ -1,56 +1,30 @@
 # ai-site-advisor
 
-エリア・対象日・機種から、**ChatGPTへコピーして実行するホール検索プロンプト**を作るアプリです。ダーク配色、スマートフォン対応。
-
-APIキー、API課金、CSV、DBは不要です。アプリからAIや調査先サイトへ入力を送信しません。実際の検索・調査は、ユーザーがChatGPTへ貼り付けて実行します。ChatGPTの機能・検索回数は利用プランと利用制限に従います。
+ダークなスマホ対応画面から、指定した公開ページを取得してCloudflare Workers AIでホール候補を比較します。データベースとOpenAI APIキーは使用しません。
 
 ## 使い方
 
-1. エリア・範囲の目安・対象日・狙い機種を入力。
-2. 必要なら「詳細設定」で調査先URL・希望を指定。
-3. 「プロンプトを作成」を押す。
-4. 「コピー」→「ChatGPTを開く」→貼り付けて実行。
+1. CloudflareでAI接続・利用パスワード・許可ドメインを設定する（[公開手順](docs/cloudflare.md)）。
+2. アプリの「設定」で調査先URL、利用パスワード、調査プロンプトを保存する。
+3. 検索画面でエリア・日付・機種を選び「AIで調査」を押す。
+4. 結果と実際に取得したページを確認する。
 
-コピーできないブラウザでは文章を選択し、手動コピーできます。条件を変えたときは再作成してください。`/demo` は入力例、`/settings` は使い方です。アプリ内でおすすめ結果や架空の点数を生成する画面はありません。
+プロンプトの `{{検索条件}}` に入力条件が入ります。プロンプトと調査先はブラウザのlocalStorage、パスワードはこのタブのsessionStorageに保存します。保存エラーも画面に表示します。
 
-生成プロンプトには、実際のWeb検索が可能な場合だけ公開情報を調査すること、参照URL、参考スコアの根拠、掲載日、不明点を示すことを指定しています。実行結果の正確性・最新性は参照元で確認してください。
+## 無料枠と調査範囲
 
-## 起動
+Cloudflare Workers AIは1日10,000 Neuronsの無料枠があります。Freeプランでは上限到達時にAI実行が失敗します。回数は入力・出力の長さによって変わります。Workers Paidへ変更すると超過分が課金対象になるため、無料運用ではFreeプランを維持してください。Pages Functionsのリクエスト枠も適用されます。
 
-Node.js 24系とnpmを使用します。
+Web全体の検索機能はありません。指定URLのHTML・テキスト本文だけを取得し、リンク先は巡回しません。取得は最大5ページ、各ページ250KBまで、AIへの資料は先頭6,000文字までです。JavaScriptで表示する内容、ログイン必須ページ、閲覧制限、PDF、画像内の実績は読み取りません。取得失敗は表示し、全件失敗ならAIを呼ばず終了します。採点はAIによる参考評価です。
 
-```sh
-cd /workspace/ai-site-advisor
-npm ci --cache /workspace/.npm-cache
-npm run dev
-```
+## 開発
 
-環境変数・APIキーの設定はありません。入力と生成内容はブラウザのメモリにのみ保持し、再読込で消えます。アプリのサーバーに履歴を保存しません。ChatGPTへ貼り付けた後の内容は、ChatGPT側のデータ設定に従います。
+Node 24.19.0、npm。`npm ci`、`npm run build`、`npm start` で静的画面を確認できます。`npm start` / `npm run dev` ではCloudflare Functionsは動きません。
 
-## 検証
+- `npm test`: 検索条件、資料取得、認証、失敗時の処理（AIはモック）
+- `npm run typecheck`: 型検査
+- `npm run build`: Next.js静的出力 `out/`
+- `npx wrangler pages functions build functions --outdir /tmp/advisor-functions`: Functionsのバンドル検証（AI呼出なし）
+- `STATIC_E2E=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=desktop --project=mobile-chromium`: 静的UI＋APIモック
 
-```sh
-npm test
-npm run typecheck
-npm run build
-npm start
-npm run smoke
-CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=desktop --project=mobile-chromium
-```
-
-Cloudflare Pagesへ公開する手順は [docs/cloudflare.md](docs/cloudflare.md) を参照してください。`npm run build` で静的ファイルを `out/` に作成し、`npm start` で配信します。API・サーバー処理はありません。
-
-静的出力に対するブラウザ検証は `STATIC_E2E=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=desktop --project=mobile-chromium` で実行します。
-
-テストは条件反映、入力チェック、ネットワークなしでの生成、コピー・手動コピー、PC/iPhoneサイズの操作を確認します。ChatGPTの実際の回答やWeb検索性能を検証するものではありません。開発・E2Eとビルドは `.next` を共有するため同時に実行しないでください。
-
-## 構成
-
-- `src/lib/prompt-generator.ts`：条件と調査指示からプロンプト生成
-- `src/lib/schema.ts`：入力チェック
-- `src/components/research-app.tsx`：条件入力、生成、コピー
-- `tests/`：ロジックとブラウザ操作の検証
-
-旧API版・CSV版の仕様は `docs/previous-*` に履歴として残しています。**現在の要件は [docs/requirements.md](docs/requirements.md)** です。旧コードは `/workspace/repository-backups/ai-site-advisor-api-before-prompt.tar` に保管しました。既存 `data/` を新アプリが読み書きすることはありません。
-
-クラウドタスクは独立環境です。明示的な依頼がない限りGit worktreeを追加せず、既存チェックアウトで開発してください。
+実際のAI接続にはCloudflare上のBindingsと秘密情報が必要です。ローカルから実AIを呼ぶWrangler実行もAI枠を消費します。

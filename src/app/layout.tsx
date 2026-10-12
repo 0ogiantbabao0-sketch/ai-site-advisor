@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "ai-site-advisor | ホール検索プロンプト",
-  description: "条件からChatGPT用のホール検索プロンプトを作成します。",
+  title: "ai-site-advisor | ホール検索",
+  description: "公開ページをAIで比較するホール検索ツール。",
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,11 +16,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Link>
           <nav aria-label="メインナビ">
             <Link href="/">検索</Link>
-            <Link href="/settings">使い方</Link>
+            <Link href="/settings">設定</Link>
           </nav>
         </header>
         <main>{children}</main>
-        <footer>ChatGPTにコピーして実行</footer>
+        <footer>指定ページをAIで比較</footer>
       </body>
     </html>
   );

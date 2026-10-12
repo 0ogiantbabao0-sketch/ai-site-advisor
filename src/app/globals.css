@@ -954,3 +954,8 @@ footer {
     padding: 14px !important;
   }
 }
+
+.search-fields { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 16px; }
+.research-report { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; padding: 20px 0; }
+.source-list { border-top: 1px solid var(--border); padding-top: 16px; overflow-wrap: anywhere; }
+.settings-page label { display: grid; gap: 8px; margin-bottom: 16px; }
