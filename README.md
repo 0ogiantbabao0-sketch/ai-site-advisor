@@ -38,6 +38,10 @@ npm run smoke
 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=desktop --project=mobile-chromium
 ```
 
+Cloudflare Pagesへ公開する手順は [docs/cloudflare.md](docs/cloudflare.md) を参照してください。`npm run build` で静的ファイルを `out/` に作成し、`npm start` で配信します。API・サーバー処理はありません。
+
+静的出力に対するブラウザ検証は `STATIC_E2E=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=desktop --project=mobile-chromium` で実行します。
+
 テストは条件反映、入力チェック、ネットワークなしでの生成、コピー・手動コピー、PC/iPhoneサイズの操作を確認します。ChatGPTの実際の回答やWeb検索性能を検証するものではありません。開発・E2Eとビルドは `.next` を共有するため同時に実行しないでください。
 
 ## 構成
@@ -45,7 +49,6 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- --project=desktop --project=
 - `src/lib/prompt-generator.ts`：条件と調査指示からプロンプト生成
 - `src/lib/schema.ts`：入力チェック
 - `src/components/research-app.tsx`：条件入力、生成、コピー
-- `src/app/api/health/route.ts`：起動確認
 - `tests/`：ロジックとブラウザ操作の検証
 
 旧API版・CSV版の仕様は `docs/previous-*` に履歴として残しています。**現在の要件は [docs/requirements.md](docs/requirements.md)** です。旧コードは `/workspace/repository-backups/ai-site-advisor-api-before-prompt.tar` に保管しました。既存 `data/` を新アプリが読み書きすることはありません。

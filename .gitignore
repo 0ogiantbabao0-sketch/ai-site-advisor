@@ -6,3 +6,6 @@ data/*.sqlite*
 test-results/
 playwright-report/
 *.tsbuildinfo
+out/
+dist/
+.wrangler/

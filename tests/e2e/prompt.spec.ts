@@ -115,3 +115,19 @@ test("example is preset conditions, not fake recommendations; guide needs no API
     404,
   );
 });
+
+test("static pages initialize JST today from the visitor clock, not the build date", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2030-04-15T21:00:00Z"));
+  for (const path of ["/", "/demo/"]) {
+    await page.goto(path);
+    await expect(page.getByLabel("対象日", { exact: true })).toHaveValue(
+      "2030-04-16",
+    );
+    await page.getByRole("button", { name: /プロンプトを作成/ }).click();
+    await expect(page.getByLabel("生成したプロンプト")).toHaveValue(
+      /2030-04-16/,
+    );
+  }
+});

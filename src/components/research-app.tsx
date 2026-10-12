@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { todayJST, addDays } from "@/lib/dates";
 import { defaultInput, generatePrompt } from "@/lib/prompt-generator";
@@ -17,7 +17,7 @@ export default function ResearchApp({
   example?: boolean;
 }) {
   const [input, setInput] = useState<ResearchInput>(
-      initialInput ?? defaultInput,
+      initialInput ?? (() => ({ ...defaultInput(), targetDate: "" })),
     ),
     [sites, setSites] = useState(initialInput?.preferredSites.join("\n") ?? ""),
     [other, setOther] = useState(""),
@@ -25,6 +25,12 @@ export default function ResearchApp({
     [error, setError] = useState(""),
     [copied, setCopied] = useState(false),
     [generatedInput, setGeneratedInput] = useState("");
+  // Static exports must use the visitor's current date, not the build date.
+  useEffect(() => {
+    setInput((current) =>
+      current.targetDate ? current : { ...current, targetDate: todayJST() },
+    );
+  }, []);
   const textarea = useRef<HTMLTextAreaElement>(null),
     output = useRef<HTMLElement>(null);
   const patch = (p: Partial<ResearchInput>) => {
